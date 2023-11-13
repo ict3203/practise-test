@@ -1,26 +1,21 @@
 pipeline {
     agent any
-
     stages {
-        stage('Checkout SCM') {
-            steps {
-                git 'https://github.com/ict3203/practise-test' // Updated GitHub repository URL
-            }
-        }
-
         stage('OWASP DependencyCheck') {
             steps {
-                dependencyCheck additionalArguments: '--format HTML --format XML', odcInstallation: 'Default'
+                dependencyCheck additionalArguments: '--format HTML --format XML',
+                odcInstallation: 'OWASP Dependency-Check Vulnerabilities'
+                dependencyCheckPublisher pattern: 'dependency-check-report.xml'
+            }
+			post {
+                success {
+                    dependencyCheckPublisher pattern: 'dependency-check-report.xml'
+                }
             }
         }
-
-        stage('Checkout Vulnerable-Web-Application') {
-            steps {
-                git 'https://github.com/ict3203/practise-test' // Updated GitHub repository URL
-            }
-        }
-
-        stage('Code Quality Check via SonarQube') {
+		
+        stage('SonarQube Analysis') {
+            agent any
             steps {
                 script {
                     def scannerHome = tool 'SonarQube'
@@ -29,12 +24,14 @@ pipeline {
                     }
                 }
             }
-        }
-    }
-
-    post {
-        always {
-            recordIssues enabledForFailure: true, tool: sonarQube()
+            post {
+                always {
+                    script {
+                        def issues = scanForIssues tool: [$class: 'SonarQube']
+                        recordIssues tool: [$class: 'SonarQube'], issues: issues
+                    }
+                }
+            }
         }
     }
 }
